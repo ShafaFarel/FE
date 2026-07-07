@@ -1,167 +1,183 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2 } from 'lucide-react';
+import { Send, Loader2 } from 'lucide-react';
+import { api } from '../utils/api';
+
+const QUICK_PROMPTS = [
+  'Apa prospek karir di jurusan yang direkomendasikan untukku?',
+  'Berapa estimasi gaji awal untuk karir saya?',
+  'Apa yang harus aku persiapkan sebelum masuk kuliah?',
+  'Jurusan mana yang paling banyak dibutuhkan industri saat ini?',
+];
 
 export default function MentorAI() {
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
-      content: 'Halo! Aku AI Mentor EduFuture. Ada pelajaran yang bikin kamu bingung atau pengen diskusi soal karir hari ini?'
+      content: 'Halo! Aku AI Mentor EduFuture yang sudah mengenal profil akademis kamu. Kamu bisa tanya soal jurusan yang direkomendasikan, prospek karir, estimasi gaji, atau langkah persiapan ke depan. Silakan ketik pertanyaan kamu.'
     }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // Auto scroll saat ada pesan baru atau loading
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
 
-  const handleSend = async (e) => {
-    if (e) e.preventDefault();
-    
-    const text = input.trim();
-    if (!text) return;
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+  }, [input]);
 
-    // Tambahkan pesan user ke state
-    const userMessage = { role: 'user', content: text };
-    setMessages(prev => [...prev, userMessage]);
+  const sendMessage = async (text) => {
+    const trimmed = text.trim();
+    if (!trimmed || isLoading) return;
+
+    setMessages(prev => [...prev, { role: 'user', content: trimmed }]);
     setInput('');
     setIsLoading(true);
 
     try {
-      // Dummy API simulation (seolah-olah POST ke /api/chat)
-      // Dalam implementasi nyata, ganti dengan:
-      // const res = await fetch('/api/chat', { method: 'POST', body: JSON.stringify({ message: text }) });
-      // const data = await res.json();
-      
-      const response = await new Promise((resolve) => {
-        setTimeout(() => {
-          // Logika balasan dummy sederhana berdasarkan kata kunci
-          const lowerText = text.toLowerCase();
-          let reply = "Menarik banget! Ceritain lebih lanjut dong biar aku bisa kasih saran yang lebih pas.";
-          
-          if (lowerText.includes("susah") || lowerText.includes("pusing") || lowerText.includes("gak ngerti")) {
-            reply = "Wajar kok kalau ngerasa susah, banyak juga yang ngalamin hal yang sama. Coba pelan-pelan dipahami konsep dasarnya dulu. Bagian mana nih yang paling bikin bingung?";
-          } else if (lowerText.includes("karir") || lowerText.includes("kuliah") || lowerText.includes("jurusan")) {
-            reply = "Wah, mikirin masa depan itu langkah yang bagus! Menurut profil kamu, bidang teknologi atau desain UI/UX kelihatan menjanjikan. Kamu sendiri lebih suka ngoding atau bikin desain?";
-          }
-          
-          resolve({ reply });
-        }, 1500);
-      });
-
+      const response = await api.chatWithMentor(trimmed);
       setMessages(prev => [...prev, { role: 'assistant', content: response.reply }]);
     } catch (error) {
-      console.error('Error fetching AI response:', error);
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Terjadi kesalahan, coba lagi ya.' }]);
+      console.error('Mentor AI error:', error);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Maaf, ada gangguan koneksi. Pastikan Anda sudah masuk dan telah melakukan prediksi karir sebelumnya.'
+      }]);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    sendMessage(input);
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      sendMessage(input);
     }
   };
 
+  const isOnlyGreeting = messages.length === 1;
+
   return (
-    <div className="relative py-8 max-w-4xl mx-auto px-4 flex flex-col h-[calc(100vh-64px)]">
+    <div className="relative max-w-4xl mx-auto px-4 py-8 flex flex-col" style={{ height: 'calc(100vh - 64px)' }}>
+      
       {/* Header */}
-      <div className="mb-6 text-center relative z-10 shrink-0">
-        <div className="inline-flex items-center space-x-2 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-4 py-1.5 text-xs text-indigo-300 mb-3">
-          <Bot className="h-4 w-4 text-indigo-400" />
-          <span>EduFuture AI Mentor</span>
-        </div>
-        <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-          Tanya Mentor AI
-        </h2>
-        <p className="mt-2 text-slate-600 dark:text-slate-400 text-sm">
-          Ruang diskusi nyaman tanpa judgement. Tanyain soal pelajaran atau masa depan karirmu.
+      <div className="mb-6 shrink-0 border-b border-hairline pb-4">
+        <h1 className="text-xl font-semibold text-ink tracking-[-0.03em] leading-tight">Diskusikan karir kamu dengan AI Mentor.</h1>
+        <p className="text-xs text-ink-muted mt-1 leading-relaxed">
+          Ruang diskusi interaktif berdasarkan rekam data akademis kamu.
         </p>
       </div>
 
-      {/* Chat Area */}
-      <div className="flex-1 glass-panel rounded-2xl border border-slate-200 dark:border-white/5 shadow-2xl relative z-10 flex flex-col overflow-hidden bg-white/50 dark:bg-brand-bg/50">
+      {/* Main Chat Interface */}
+      <div className="flex-1 bg-canvas border border-hairline rounded-lg flex flex-col overflow-hidden min-h-0 shadow-sm mb-4">
         
-        {/* Messages Box */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-          {messages.map((msg, index) => {
+        {/* Messages Feed - Notion Style Comments */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 divide-y divide-hairline">
+          {messages.map((msg, i) => {
             const isUser = msg.role === 'user';
+            const lines = msg.content.split('\n');
             return (
-              <div key={index} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-                <div className={`flex items-end space-x-2 max-w-[85%] sm:max-w-[75%] ${isUser ? 'flex-row-reverse space-x-reverse' : 'flex-row'}`}>
-                  
-                  {/* Avatar */}
-                  <div className={`shrink-0 h-8 w-8 rounded-full flex items-center justify-center shadow-lg ${isUser ? 'bg-slate-300 dark:bg-slate-700' : 'bg-gradient-to-br from-indigo-500 to-purple-600'}`}>
-                    {isUser ? <User className="h-4 w-4 text-slate-700 dark:text-white" /> : <Bot className="h-4 w-4 text-white" />}
-                  </div>
+              <div 
+                key={i} 
+                className={`flex flex-col space-y-1.5 ${i > 0 ? 'pt-6' : ''} animate-fade-in`}
+              >
+                {/* Meta Header */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold font-mono uppercase tracking-wider">
+                    {isUser ? 'Siswa' : 'AI Mentor'}
+                  </span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-hairline-strong" />
+                  <span className="text-[10px] text-ink-subtle font-mono">
+                    {isUser ? 'User' : 'Llama 3.1'}
+                  </span>
+                </div>
 
-                  {/* Bubble */}
-                  <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                    isUser 
-                      ? 'bg-[#F62440] text-white rounded-br-none' // User bubble matching the requested primary color
-                      : 'bg-white border border-slate-200 text-slate-800 dark:bg-slate-800 dark:border-white/5 dark:text-slate-200 rounded-bl-none' // AI bubble matching card color
-                  }`}>
-                    {msg.content}
-                  </div>
-
+                {/* Plain Text Body */}
+                <div className="text-sm text-ink-muted leading-relaxed max-w-3xl whitespace-pre-line">
+                  {msg.content}
                 </div>
               </div>
             );
           })}
 
-          {/* Typing Indicator */}
+          {/* Typing state */}
           {isLoading && (
-            <div className="flex justify-start">
-              <div className="flex items-end space-x-2 max-w-[85%] sm:max-w-[75%]">
-                <div className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center shadow-lg bg-gradient-to-br from-indigo-500 to-purple-600">
-                  <Bot className="h-4 w-4 text-white" />
-                </div>
-                <div className="px-5 py-4 rounded-2xl bg-white border border-slate-200 dark:bg-slate-800 dark:border-white/5 rounded-bl-none flex items-center space-x-2">
-                  <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                  <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                  <span className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400 ml-2 font-medium">AI sedang mengetik...</span>
-                </div>
-              </div>
+            <div className="pt-6 flex flex-col space-y-1">
+              <span className="text-[10px] font-semibold font-mono uppercase tracking-wider text-ink-subtle">
+                AI Mentor
+              </span>
+              <p className="text-xs text-ink-subtle font-mono animate-pulse">
+                Menyusun jawaban...
+              </p>
             </div>
           )}
-          
+
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input Area */}
-        <div className="p-4 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-200 dark:border-white/5 shrink-0">
-          <form onSubmit={handleSend} className="relative flex items-end gap-2 max-w-4xl mx-auto">
+        {/* Quick Suggestions */}
+        {isOnlyGreeting && (
+          <div className="px-6 py-4 bg-surface-2 border-t border-hairline shrink-0">
+            <span className="text-[10px] font-semibold text-ink-muted uppercase tracking-wider font-mono block mb-2">Pertanyaan Cepat:</span>
+            <div className="flex flex-col gap-2">
+              {QUICK_PROMPTS.map((prompt, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => sendMessage(prompt)}
+                  disabled={isLoading}
+                  className="text-left text-xs text-[#5E6AD2] hover:text-[#4E58B8] font-medium hover:underline"
+                >
+                  → {prompt}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Input Bar */}
+        <div className="p-4 border-t border-hairline bg-surface-1 shrink-0">
+          <form onSubmit={handleSubmit} className="flex items-end gap-3">
             <div className="relative flex-1">
               <textarea
+                ref={textareaRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Ketik pesan kamu di sini... (Enter untuk kirim)"
-                className="w-full bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 dark:bg-slate-950 dark:border-white/10 dark:text-slate-200 dark:placeholder:text-slate-500 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none max-h-32 min-h-[44px]"
                 rows={1}
-                style={{ 
-                  height: 'auto',
-                }}
+                className="w-full bg-canvas border border-hairline rounded px-3 py-2.5 text-xs text-ink focus:outline-none focus:border-ink-muted resize-none leading-relaxed"
+                style={{ maxHeight: '120px', minHeight: '40px' }}
               />
             </div>
             <button
               type="submit"
               disabled={isLoading || !input.trim()}
-              className="shrink-0 h-[44px] w-[44px] flex items-center justify-center rounded-xl bg-[#F62440] text-white hover:bg-[#F62440]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="shrink-0 h-10 bg-ink hover:bg-ink-muted text-canvas font-medium text-xs rounded px-4 transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-sm"
             >
-              {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5 ml-1" />}
+              <span>Kirim</span>
             </button>
           </form>
+          <div className="flex justify-between text-[9px] text-ink-subtle mt-2 font-mono px-1">
+            <span>Shift+Enter untuk baris baru.</span>
+            <span>Koneksi aman.</span>
+          </div>
         </div>
 
       </div>
